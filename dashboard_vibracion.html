@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Vibración — Sensor Estructural</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --text3: #484f58;
+    --blue: #378ADD;
+    --teal: #1D9E75;
+    --coral: #D85A30;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-logo {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #fff;
+  }
+  .topbar-title { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.02em; }
+  .topbar-sub { font-size: 12px; color: var(--text2); }
+  .topbar-right { display: flex; align-items: center; gap: 10px; }
+  .badge {
+    font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+  .badge-live { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .badge-date { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+
+  /* MAIN LAYOUT */
+  .main { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+
+  /* SECTION TITLES */
+  .section-label {
+    font-size: 11px; color: var(--text3); text-transform: uppercase;
+    letter-spacing: 0.08em; margin-bottom: 10px; margin-top: 2rem;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* METRIC CARDS */
+  .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .metric-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.2rem 1.4rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .metric-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  }
+  .metric-card.axial::before { background: var(--blue); }
+  .metric-card.radial::before { background: var(--teal); }
+  .metric-card.horizontal::before { background: var(--coral); }
+  .metric-card .m-label { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .metric-card .m-value { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); }
+  .metric-card .m-unit { font-size: 13px; color: var(--text3); margin-left: 4px; }
+  .metric-card .m-sub { font-size: 11px; color: var(--text2); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .dot-ok { background: var(--green); }
+  .dot-warn { background: var(--yellow); }
+
+  /* STATS TABLE */
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stat-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.2rem;
+  }
+  .stat-box h3 {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .axis-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 5px 0; border-bottom: 1px solid var(--border);
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .lbl { font-size: 11px; color: var(--text2); }
+  .stat-row .val { font-size: 12px; font-weight: 600; color: var(--text); font-family: 'SF Mono','Fira Code',monospace; }
+  .val-safe { color: var(--green) !important; }
+
+  /* CHART PANELS */
+  .chart-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.4rem;
+    margin-top: 0;
+  }
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;
+  }
+  .chart-header h2 { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .chart-header p { font-size: 11px; color: var(--text2); margin-top: 2px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+  .legend-sq { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* CONTROLS */
+  .controls { display: flex; gap: 6px; margin-bottom: 1rem; flex-wrap: wrap; }
+  .ctrl-btn {
+    font-size: 11px; font-family: inherit; padding: 5px 14px;
+    border: 1px solid var(--border2); border-radius: 20px;
+    background: transparent; color: var(--text2); cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ctrl-btn:hover { background: var(--bg3); color: var(--text); }
+  .ctrl-btn.active { background: var(--bg3); color: var(--text); border-color: var(--text3); }
+
+  /* ALERT ZONE */
+  .alerts-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+  .alert-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 1rem;
+  }
+  .alert-card .a-title { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+  .range-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; margin: 8px 0 6px; position: relative; }
+  .range-fill { height: 100%; border-radius: 3px; }
+  .range-limits { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); }
+
+  /* FOOTER */
+  footer {
+    text-align: center; padding: 2rem; font-size: 11px; color: var(--text3);
+    border-top: 1px solid var(--border); margin-top: 2rem;
+  }
+
+  @media (max-width: 768px) {
+    .metrics-grid, .stats-grid, .alerts-row { grid-template-columns: 1fr; }
+    .main { padding: 1rem; }
+    .topbar { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">V</div>
+    <div>
+      <div class="topbar-title">Monitor de Vibración Estructural</div>
+      <div class="topbar-sub">Sensor triaxial — datos históricos</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="badge badge-live">● EN LÍNEA</span>
+    <span class="badge badge-date">Mar 2026 · 182 lecturas</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <div class="section-label">última lectura — 31 mar 2026 09:00</div>
+  <div class="metrics-grid" id="metricCards"></div>
+
+  <div class="section-label" style="margin-top:1.5rem">estadísticas y rangos seguros (μ ± 3σ)</div>
+  <div class="stats-grid" id="statsGrid"></div>
+
+  <div class="section-label" style="margin-top:1.5rem">utilización del rango seguro</div>
+  <div class="alerts-row" id="alertsRow"></div>
+
+  <div class="section-label" style="margin-top:1.5rem">historial de vibraciones (mm/s)</div>
+  <div class="chart-panel">
+    <div class="chart-header">
+      <div>
+        <h2>Serie temporal — los tres ejes</h2>
+        <p>Líneas discontinuas = límites μ ± 3σ</p>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-sq" style="background:#378ADD"></span>Axial</span>
+        <span class="legend-item"><span class="legend-sq" style="background:#1D9E75"></span>Radial</span>
+        <span class="legend-item"><span class="legend-sq" style="background:#D85A30"></span>Horizontal</span>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-btn active" onclick="setView('all',this)">Todos</button>
+      <button class="ctrl-btn" onclick="setView('Axial',this)">Axial</button>
+      <button class="ctrl-btn" onclick="setView('Radial',this)">Radial</button>
+      <button class="ctrl-btn" onclick="setView('Horizontal',this)">Horizontal</button>
+    </div>
+    <div style="position:relative;width:100%;height:300px;">
+      <canvas id="lineChart"></canvas>
+    </div>
+  </div>
+
+  <div class="section-label" style="margin-top:1.5rem">distribución de amplitudes</div>
+  <div class="chart-panel">
+    <div class="chart-header">
+      <div>
+        <h2>Histograma de frecuencias</h2>
+        <p>Distribución de valores en el período analizado</p>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-sq" style="background:#378ADD88"></span>Axial</span>
+        <span class="legend-item"><span class="legend-sq" style="background:#1D9E7588"></span>Radial</span>
+        <span class="legend-item"><span class="legend-sq" style="background:#D85A3088"></span>Horizontal</span>
+      </div>
+    </div>
+    <div style="position:relative;width:100%;height:260px;">
+      <canvas id="histChart"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<footer>Dashboard generado automáticamente · Datos: sensor estructural triaxial · Período: 01–31 marzo 2026</footer>
+
+<script>
+const RAW = [{"DateTime":"2026-03-01 06:06:53","Axial":2.1947,"Radial":0.5376,"Horizontal":1.1531},{"DateTime":"2026-03-01 09:00:53","Axial":2.7745,"Radial":0.5322,"Horizontal":1.1277},{"DateTime":"2026-03-01 13:00:53","Axial":2.2996,"Radial":0.6515,"Horizontal":1.1041},{"DateTime":"2026-03-01 17:00:53","Axial":2.2263,"Radial":0.6081,"Horizontal":1.0267},{"DateTime":"2026-03-01 21:00:53","Axial":2.0175,"Radial":0.5770,"Horizontal":0.9520},{"DateTime":"2026-03-02 01:00:53","Axial":1.9680,"Radial":0.6236,"Horizontal":1.0997},{"DateTime":"2026-03-02 05:00:53","Axial":2.1245,"Radial":0.5077,"Horizontal":1.0702},{"DateTime":"2026-03-02 09:00:53","Axial":2.3060,"Radial":0.4310,"Horizontal":0.9945},{"DateTime":"2026-03-02 13:00:53","Axial":2.2292,"Radial":0.4715,"Horizontal":0.9600},{"DateTime":"2026-03-02 17:00:58","Axial":2.2019,"Radial":0.4906,"Horizontal":0.9456},{"DateTime":"2026-03-02 21:00:58","Axial":2.2018,"Radial":0.4495,"Horizontal":0.8537},{"DateTime":"2026-03-03 01:00:58","Axial":1.9444,"Radial":0.4713,"Horizontal":0.7958},{"DateTime":"2026-03-03 05:00:58","Axial":1.9377,"Radial":0.4692,"Horizontal":0.8266},{"DateTime":"2026-03-03 09:00:58","Axial":2.0832,"Radial":0.5251,"Horizontal":0.8270},{"DateTime":"2026-03-03 13:00:58","Axial":2.2183,"Radial":0.5479,"Horizontal":0.8893},{"DateTime":"2026-03-03 17:00:58","Axial":2.2625,"Radial":0.5287,"Horizontal":0.8206},{"DateTime":"2026-03-03 21:00:58","Axial":2.2150,"Radial":0.4665,"Horizontal":0.8983},{"DateTime":"2026-03-04 01:00:58","Axial":2.1835,"Radial":0.4862,"Horizontal":0.8566},{"DateTime":"2026-03-04 05:00:58","Axial":2.2077,"Radial":0.5464,"Horizontal":0.9867},{"DateTime":"2026-03-04 09:00:58","Axial":2.6732,"Radial":0.5712,"Horizontal":1.0662},{"DateTime":"2026-03-04 13:00:58","Axial":2.5633,"Radial":0.7767,"Horizontal":1.1487},{"DateTime":"2026-03-04 17:00:58","Axial":1.8928,"Radial":1.1251,"Horizontal":1.0134},{"DateTime":"2026-03-04 21:00:58","Axial":2.3300,"Radial":0.9502,"Horizontal":0.8020},{"DateTime":"2026-03-05 01:00:58","Axial":2.2942,"Radial":1.1088,"Horizontal":1.0468},{"DateTime":"2026-03-05 05:00:58","Axial":2.7212,"Radial":0.9738,"Horizontal":1.1464},{"DateTime":"2026-03-05 09:00:58","Axial":1.9672,"Radial":0.9461,"Horizontal":1.1569},{"DateTime":"2026-03-05 13:00:58","Axial":2.0164,"Radial":1.0713,"Horizontal":0.8869},{"DateTime":"2026-03-05 17:00:58","Axial":2.6344,"Radial":1.0569,"Horizontal":1.2175},{"DateTime":"2026-03-05 21:00:58","Axial":2.1650,"Radial":1.1509,"Horizontal":0.8336},{"DateTime":"2026-03-06 01:00:58","Axial":1.9247,"Radial":1.1128,"Horizontal":0.7645},{"DateTime":"2026-03-06 05:00:58","Axial":1.9319,"Radial":0.9813,"Horizontal":0.9772},{"DateTime":"2026-03-06 09:00:58","Axial":1.6670,"Radial":0.9171,"Horizontal":1.1346},{"DateTime":"2026-03-06 13:00:58","Axial":1.5334,"Radial":1.0536,"Horizontal":0.8172},{"DateTime":"2026-03-06 17:00:58","Axial":2.0652,"Radial":0.8481,"Horizontal":0.9386},{"DateTime":"2026-03-06 21:00:58","Axial":1.9050,"Radial":1.0030,"Horizontal":0.8533},{"DateTime":"2026-03-07 01:00:58","Axial":2.2074,"Radial":1.0075,"Horizontal":0.8510},{"DateTime":"2026-03-07 05:00:58","Axial":1.8866,"Radial":1.0960,"Horizontal":1.0189},{"DateTime":"2026-03-07 09:00:58","Axial":1.9857,"Radial":0.9972,"Horizontal":0.7530},{"DateTime":"2026-03-07 13:00:58","Axial":1.7423,"Radial":1.1879,"Horizontal":1.0387},{"DateTime":"2026-03-07 17:00:58","Axial":1.8450,"Radial":1.1070,"Horizontal":0.8902},{"DateTime":"2026-03-07 21:00:58","Axial":2.1432,"Radial":1.0936,"Horizontal":0.8950},{"DateTime":"2026-03-08 01:00:58","Axial":2.1102,"Radial":1.0742,"Horizontal":0.8951},{"DateTime":"2026-03-08 05:00:58","Axial":1.6814,"Radial":0.9638,"Horizontal":1.0157},{"DateTime":"2026-03-08 09:00:58","Axial":2.2259,"Radial":0.9426,"Horizontal":0.7302},{"DateTime":"2026-03-08 13:00:58","Axial":2.0328,"Radial":0.9775,"Horizontal":0.8092},{"DateTime":"2026-03-08 17:00:58","Axial":1.9914,"Radial":0.9087,"Horizontal":0.9369},{"DateTime":"2026-03-08 21:00:58","Axial":2.2996,"Radial":1.1463,"Horizontal":0.7800},{"DateTime":"2026-03-09 01:00:58","Axial":1.6967,"Radial":1.0482,"Horizontal":0.9002},{"DateTime":"2026-03-09 05:00:58","Axial":2.0371,"Radial":1.1923,"Horizontal":0.8562},{"DateTime":"2026-03-09 09:00:58","Axial":2.0774,"Radial":0.9627,"Horizontal":0.9740},{"DateTime":"2026-03-09 13:00:58","Axial":1.6022,"Radial":1.0013,"Horizontal":0.9785},{"DateTime":"2026-03-09 17:00:58","Axial":2.0433,"Radial":1.4213,"Horizontal":0.7955},{"DateTime":"2026-03-09 21:00:58","Axial":1.7976,"Radial":1.2919,"Horizontal":0.9927},{"DateTime":"2026-03-10 01:00:58","Axial":1.7670,"Radial":1.1858,"Horizontal":0.9470},{"DateTime":"2026-03-10 05:00:58","Axial":1.4919,"Radial":0.8840,"Horizontal":0.8138},{"DateTime":"2026-03-10 09:00:58","Axial":1.9358,"Radial":1.1066,"Horizontal":0.8036},{"DateTime":"2026-03-10 13:01:36","Axial":1.8669,"Radial":0.9828,"Horizontal":0.8400},{"DateTime":"2026-03-10 17:01:36","Axial":1.6661,"Radial":1.0298,"Horizontal":0.8442},{"DateTime":"2026-03-10 21:01:36","Axial":1.8328,"Radial":1.1345,"Horizontal":1.0192},{"DateTime":"2026-03-11 01:01:36","Axial":2.0643,"Radial":1.0046,"Horizontal":1.3831},{"DateTime":"2026-03-11 05:01:36","Axial":2.3251,"Radial":1.1803,"Horizontal":1.1400},{"DateTime":"2026-03-11 09:01:36","Axial":2.1955,"Radial":1.0008,"Horizontal":0.9995},{"DateTime":"2026-03-11 13:01:36","Axial":1.9406,"Radial":1.1667,"Horizontal":0.9885},{"DateTime":"2026-03-11 17:01:36","Axial":1.9159,"Radial":1.2454,"Horizontal":0.9735},{"DateTime":"2026-03-11 21:01:36","Axial":1.9328,"Radial":1.1389,"Horizontal":0.9593},{"DateTime":"2026-03-12 01:01:36","Axial":2.5893,"Radial":0.9754,"Horizontal":0.8630},{"DateTime":"2026-03-12 05:01:36","Axial":1.9706,"Radial":1.0324,"Horizontal":0.9298},{"DateTime":"2026-03-12 09:01:36","Axial":1.8509,"Radial":1.0390,"Horizontal":0.9585},{"DateTime":"2026-03-12 13:01:36","Axial":1.8354,"Radial":0.9212,"Horizontal":0.9452},{"DateTime":"2026-03-12 17:01:36","Axial":1.8611,"Radial":0.8584,"Horizontal":0.8702},{"DateTime":"2026-03-12 21:01:36","Axial":2.1998,"Radial":0.9023,"Horizontal":0.9424},{"DateTime":"2026-03-13 01:01:36","Axial":1.9196,"Radial":0.9837,"Horizontal":0.8226},{"DateTime":"2026-03-13 05:01:36","Axial":2.2808,"Radial":0.9390,"Horizontal":1.2844},{"DateTime":"2026-03-13 09:01:36","Axial":1.8295,"Radial":1.0221,"Horizontal":1.0962},{"DateTime":"2026-03-13 13:01:36","Axial":1.7651,"Radial":1.0914,"Horizontal":0.9292},{"DateTime":"2026-03-13 17:01:36","Axial":2.1403,"Radial":0.9259,"Horizontal":0.8023},{"DateTime":"2026-03-13 21:01:36","Axial":1.7550,"Radial":1.0679,"Horizontal":1.0209},{"DateTime":"2026-03-14 01:01:36","Axial":2.5217,"Radial":1.1111,"Horizontal":1.0759},{"DateTime":"2026-03-14 05:01:36","Axial":2.4936,"Radial":0.9214,"Horizontal":0.8594},{"DateTime":"2026-03-14 09:01:36","Axial":2.0124,"Radial":1.1975,"Horizontal":1.0159},{"DateTime":"2026-03-14 13:01:36","Axial":2.0548,"Radial":1.3769,"Horizontal":0.9345},{"DateTime":"2026-03-14 17:01:36","Axial":1.9064,"Radial":1.1779,"Horizontal":0.8513},{"DateTime":"2026-03-14 21:01:36","Axial":1.8873,"Radial":1.0662,"Horizontal":0.9826},{"DateTime":"2026-03-15 01:01:36","Axial":2.6135,"Radial":0.9605,"Horizontal":1.0895},{"DateTime":"2026-03-15 05:01:36","Axial":1.9888,"Radial":1.0492,"Horizontal":0.8614},{"DateTime":"2026-03-15 09:01:36","Axial":2.1381,"Radial":1.0783,"Horizontal":1.1949},{"DateTime":"2026-03-15 13:01:36","Axial":1.9886,"Radial":1.1049,"Horizontal":1.2483},{"DateTime":"2026-03-15 17:01:36","Axial":1.9421,"Radial":0.9129,"Horizontal":1.1456},{"DateTime":"2026-03-15 21:01:36","Axial":2.4476,"Radial":0.9515,"Horizontal":1.0233},{"DateTime":"2026-03-16 01:01:36","Axial":2.3122,"Radial":0.9082,"Horizontal":1.0694},{"DateTime":"2026-03-16 05:01:36","Axial":2.1822,"Radial":0.8903,"Horizontal":1.3639},{"DateTime":"2026-03-16 09:01:36","Axial":1.6957,"Radial":1.0201,"Horizontal":1.0660},{"DateTime":"2026-03-16 13:01:36","Axial":2.4607,"Radial":1.2258,"Horizontal":1.1095},{"DateTime":"2026-03-16 17:01:42","Axial":2.0808,"Radial":1.1742,"Horizontal":0.9446},{"DateTime":"2026-03-16 21:01:09","Axial":2.4352,"Radial":1.1065,"Horizontal":0.8146},{"DateTime":"2026-03-17 01:01:06","Axial":1.8575,"Radial":1.3793,"Horizontal":1.0983},{"DateTime":"2026-03-17 05:00:39","Axial":1.8686,"Radial":1.1591,"Horizontal":1.0784},{"DateTime":"2026-03-17 09:01:17","Axial":1.8936,"Radial":0.9615,"Horizontal":1.1714},{"DateTime":"2026-03-17 13:01:22","Axial":1.8454,"Radial":0.9559,"Horizontal":1.0806},{"DateTime":"2026-03-17 17:00:26","Axial":2.1496,"Radial":0.9839,"Horizontal":0.9697},{"DateTime":"2026-03-17 21:01:18","Axial":2.0924,"Radial":1.0748,"Horizontal":0.9880},{"DateTime":"2026-03-18 01:01:09","Axial":1.7577,"Radial":0.9544,"Horizontal":1.1642},{"DateTime":"2026-03-18 05:00:21","Axial":1.9066,"Radial":1.0917,"Horizontal":0.7347},{"DateTime":"2026-03-18 09:01:18","Axial":1.6904,"Radial":1.0598,"Horizontal":0.9681},{"DateTime":"2026-03-18 13:01:10","Axial":1.8172,"Radial":1.1544,"Horizontal":0.9763},{"DateTime":"2026-03-18 17:01:19","Axial":1.9223,"Radial":0.9635,"Horizontal":0.9270},{"DateTime":"2026-03-18 21:01:21","Axial":1.7294,"Radial":0.9460,"Horizontal":1.0605},{"DateTime":"2026-03-19 01:00:25","Axial":1.8200,"Radial":1.0719,"Horizontal":0.9049},{"DateTime":"2026-03-19 05:00:39","Axial":1.9282,"Radial":1.1940,"Horizontal":1.0780},{"DateTime":"2026-03-19 09:00:52","Axial":2.5849,"Radial":1.1035,"Horizontal":0.8467},{"DateTime":"2026-03-19 13:00:59","Axial":1.7713,"Radial":1.0936,"Horizontal":0.9310},{"DateTime":"2026-03-19 17:01:15","Axial":1.6138,"Radial":0.9904,"Horizontal":0.8076},{"DateTime":"2026-03-19 21:00:04","Axial":1.8185,"Radial":1.0674,"Horizontal":0.9556},{"DateTime":"2026-03-20 01:01:32","Axial":2.4006,"Radial":0.9215,"Horizontal":1.0915},{"DateTime":"2026-03-20 05:00:40","Axial":2.5483,"Radial":0.9810,"Horizontal":1.1463},{"DateTime":"2026-03-20 09:00:37","Axial":1.8178,"Radial":1.0224,"Horizontal":1.0552},{"DateTime":"2026-03-20 13:01:19","Axial":1.9209,"Radial":1.0073,"Horizontal":0.8407},{"DateTime":"2026-03-20 17:01:36","Axial":1.7245,"Radial":0.9348,"Horizontal":0.7830},{"DateTime":"2026-03-20 21:01:38","Axial":1.7928,"Radial":1.0633,"Horizontal":0.8439},{"DateTime":"2026-03-21 01:01:09","Axial":1.7109,"Radial":0.9203,"Horizontal":0.8698},{"DateTime":"2026-03-21 05:01:30","Axial":1.7953,"Radial":1.0055,"Horizontal":0.9227},{"DateTime":"2026-03-21 09:01:23","Axial":1.7556,"Radial":1.0868,"Horizontal":0.9391},{"DateTime":"2026-03-21 13:00:32","Axial":1.8207,"Radial":1.0259,"Horizontal":0.8411},{"DateTime":"2026-03-21 17:01:38","Axial":2.0911,"Radial":0.9446,"Horizontal":1.0091},{"DateTime":"2026-03-21 21:01:09","Axial":2.1167,"Radial":0.9147,"Horizontal":0.9080},{"DateTime":"2026-03-22 01:01:31","Axial":1.9695,"Radial":0.8733,"Horizontal":0.8857},{"DateTime":"2026-03-22 05:01:13","Axial":2.6301,"Radial":1.1933,"Horizontal":0.8914},{"DateTime":"2026-03-22 09:01:13","Axial":1.4646,"Radial":1.1233,"Horizontal":0.8908},{"DateTime":"2026-03-22 13:01:44","Axial":1.9291,"Radial":1.0928,"Horizontal":0.9013},{"DateTime":"2026-03-22 17:01:43","Axial":1.7257,"Radial":0.9752,"Horizontal":0.9060},{"DateTime":"2026-03-22 21:00:17","Axial":2.1840,"Radial":0.8604,"Horizontal":1.0453},{"DateTime":"2026-03-23 01:00:41","Axial":1.8534,"Radial":1.1140,"Horizontal":0.9452},{"DateTime":"2026-03-23 05:01:27","Axial":1.8207,"Radial":0.9439,"Horizontal":0.9590},{"DateTime":"2026-03-23 09:00:33","Axial":1.8455,"Radial":1.2347,"Horizontal":1.0740},{"DateTime":"2026-03-23 13:00:42","Axial":2.0722,"Radial":1.0560,"Horizontal":1.1325},{"DateTime":"2026-03-23 17:00:24","Axial":2.4580,"Radial":0.9106,"Horizontal":1.0886},{"DateTime":"2026-03-23 21:00:48","Axial":2.1304,"Radial":1.1229,"Horizontal":1.2962},{"DateTime":"2026-03-24 01:01:27","Axial":1.9816,"Radial":1.0674,"Horizontal":1.1051},{"DateTime":"2026-03-24 05:01:06","Axial":2.0089,"Radial":1.1062,"Horizontal":1.0709},{"DateTime":"2026-03-24 09:01:12","Axial":2.1565,"Radial":1.1473,"Horizontal":1.2637},{"DateTime":"2026-03-24 13:01:13","Axial":2.4192,"Radial":0.9755,"Horizontal":0.9834},{"DateTime":"2026-03-24 17:00:37","Axial":2.1373,"Radial":0.9336,"Horizontal":1.1366},{"DateTime":"2026-03-24 21:01:10","Axial":2.0610,"Radial":0.9699,"Horizontal":1.3059},{"DateTime":"2026-03-25 01:01:12","Axial":2.1805,"Radial":1.1158,"Horizontal":1.0844},{"DateTime":"2026-03-25 05:00:27","Axial":2.1307,"Radial":1.0039,"Horizontal":1.1034},{"DateTime":"2026-03-25 09:01:07","Axial":1.9038,"Radial":1.0941,"Horizontal":0.9615},{"DateTime":"2026-03-25 13:01:38","Axial":2.2704,"Radial":0.9267,"Horizontal":1.1535},{"DateTime":"2026-03-25 17:00:34","Axial":1.9831,"Radial":1.1779,"Horizontal":1.0531},{"DateTime":"2026-03-25 21:01:09","Axial":2.0042,"Radial":0.8760,"Horizontal":0.8693},{"DateTime":"2026-03-26 01:01:10","Axial":2.0103,"Radial":1.1805,"Horizontal":0.9816},{"DateTime":"2026-03-26 05:01:38","Axial":1.9171,"Radial":0.9322,"Horizontal":0.9724},{"DateTime":"2026-03-26 09:00:23","Axial":2.0599,"Radial":1.2160,"Horizontal":1.1816},{"DateTime":"2026-03-26 13:00:44","Axial":1.9870,"Radial":0.9562,"Horizontal":0.9969},{"DateTime":"2026-03-26 17:00:22","Axial":1.7405,"Radial":0.8965,"Horizontal":1.0469},{"DateTime":"2026-03-26 21:01:09","Axial":2.1658,"Radial":0.8619,"Horizontal":0.8236},{"DateTime":"2026-03-27 01:00:26","Axial":2.1660,"Radial":1.1618,"Horizontal":0.9994},{"DateTime":"2026-03-27 05:00:32","Axial":1.6380,"Radial":1.1867,"Horizontal":1.0292},{"DateTime":"2026-03-27 09:01:43","Axial":1.5585,"Radial":1.0611,"Horizontal":0.8874},{"DateTime":"2026-03-27 13:01:18","Axial":1.9232,"Radial":0.8713,"Horizontal":0.8982},{"DateTime":"2026-03-27 17:01:21","Axial":1.6821,"Radial":0.9281,"Horizontal":0.9090},{"DateTime":"2026-03-27 21:00:43","Axial":1.8058,"Radial":0.8464,"Horizontal":0.8702},{"DateTime":"2026-03-28 01:00:34","Axial":1.9621,"Radial":1.0446,"Horizontal":1.1133},{"DateTime":"2026-03-28 05:00:52","Axial":2.3148,"Radial":1.0423,"Horizontal":0.8892},{"DateTime":"2026-03-28 09:01:11","Axial":1.6987,"Radial":0.8530,"Horizontal":1.0007},{"DateTime":"2026-03-28 13:00:00","Axial":1.9942,"Radial":0.9418,"Horizontal":0.9633},{"DateTime":"2026-03-28 17:01:27","Axial":1.6123,"Radial":1.1681,"Horizontal":0.9213},{"DateTime":"2026-03-28 21:00:53","Axial":2.1455,"Radial":1.1823,"Horizontal":0.8850},{"DateTime":"2026-03-29 01:00:46","Axial":1.7035,"Radial":1.1119,"Horizontal":0.8914},{"DateTime":"2026-03-29 05:01:01","Axial":1.7934,"Radial":1.0583,"Horizontal":0.8733},{"DateTime":"2026-03-29 09:00:39","Axial":2.2017,"Radial":1.0190,"Horizontal":0.9815},{"DateTime":"2026-03-29 13:00:54","Axial":2.0914,"Radial":1.3638,"Horizontal":0.8167},{"DateTime":"2026-03-29 17:01:30","Axial":2.0797,"Radial":1.1350,"Horizontal":0.8901},{"DateTime":"2026-03-29 21:00:46","Axial":2.5573,"Radial":1.1265,"Horizontal":0.8134},{"DateTime":"2026-03-30 01:01:51","Axial":2.0670,"Radial":0.9549,"Horizontal":1.0430},{"DateTime":"2026-03-30 05:01:14","Axial":1.8693,"Radial":1.0500,"Horizontal":0.9508},{"DateTime":"2026-03-30 09:01:23","Axial":2.2355,"Radial":1.0026,"Horizontal":1.2695},{"DateTime":"2026-03-30 13:00:38","Axial":2.0709,"Radial":1.0699,"Horizontal":0.9401},{"DateTime":"2026-03-30 17:01:49","Axial":1.8339,"Radial":1.1688,"Horizontal":0.9438},{"DateTime":"2026-03-30 21:00:26","Axial":1.9592,"Radial":1.2476,"Horizontal":1.0479},{"DateTime":"2026-03-31 01:00:29","Axial":2.4278,"Radial":0.9829,"Horizontal":0.8557},{"DateTime":"2026-03-31 05:01:37","Axial":1.9959,"Radial":1.0430,"Horizontal":1.1198},{"DateTime":"2026-03-31 09:00:39","Axial":2.7292,"Radial":1.0391,"Horizontal":1.0607}];
+
+const AXES = ['Axial','Radial','Horizontal'];
+const COLORS = { Axial:'#378ADD', Radial:'#1D9E75', Horizontal:'#D85A30' };
+const CLASSES = { Axial:'axial', Radial:'radial', Horizontal:'horizontal' };
+
+function mean(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
+function std(a){ const m=mean(a); return Math.sqrt(a.reduce((s,v)=>s+(v-m)**2,0)/a.length); }
+
+const STATS = {};
+AXES.forEach(ax=>{
+  const v=RAW.map(r=>r[ax]), m=mean(v), s=std(v);
+  STATS[ax]={mean:m,std:s,min:Math.min(...v),max:Math.max(...v),lower:m-3*s,upper:m+3*s};
+});
+
+const last = RAW[RAW.length-1];
+function isOk(ax){ return last[ax]>=STATS[ax].lower && last[ax]<=STATS[ax].upper; }
+
+// Metric cards
+const mc = document.getElementById('metricCards');
+AXES.forEach(ax=>{
+  const ok=isOk(ax);
+  mc.innerHTML+=`<div class="metric-card ${CLASSES[ax]}">
+    <div class="m-label">${ax}</div>
+    <div class="m-value">${last[ax].toFixed(3)}<span class="m-unit">mm/s</span></div>
+    <div class="m-sub"><span class="dot ${ok?'dot-ok':'dot-warn'}"></span>${ok?'dentro del rango seguro':'fuera del rango'}</div>
+  </div>`;
+});
+
+// Stats boxes
+const sg = document.getElementById('statsGrid');
+AXES.forEach(ax=>{
+  const s=STATS[ax];
+  sg.innerHTML+=`<div class="stat-box">
+    <h3><span class="axis-dot" style="background:${COLORS[ax]}"></span>${ax}</h3>
+    <div class="stat-row"><span class="lbl">Media (μ)</span><span class="val">${s.mean.toFixed(4)}</span></div>
+    <div class="stat-row"><span class="lbl">Desv. estándar (σ)</span><span class="val">${s.std.toFixed(4)}</span></div>
+    <div class="stat-row"><span class="lbl">Mínimo observado</span><span class="val">${s.min.toFixed(4)}</span></div>
+    <div class="stat-row"><span class="lbl">Máximo observado</span><span class="val">${s.max.toFixed(4)}</span></div>
+    <div class="stat-row"><span class="lbl">Límite inferior (μ−3σ)</span><span class="val val-safe">${s.lower.toFixed(4)}</span></div>
+    <div class="stat-row"><span class="lbl">Límite superior (μ+3σ)</span><span class="val val-safe">${s.upper.toFixed(4)}</span></div>
+  </div>`;
+});
+
+// Alert/usage bars
+const ar = document.getElementById('alertsRow');
+AXES.forEach(ax=>{
+  const s=STATS[ax];
+  const range = s.upper - s.lower;
+  const pct = Math.min(100, Math.max(0, ((last[ax]-s.lower)/range)*100));
+  ar.innerHTML+=`<div class="alert-card">
+    <div class="a-title">${ax} — posición en rango</div>
+    <div style="font-size:20px;font-weight:700;color:${COLORS[ax]};font-family:monospace">${last[ax].toFixed(3)}</div>
+    <div class="range-bar"><div class="range-fill" style="width:${pct.toFixed(1)}%;background:${COLORS[ax]}"></div></div>
+    <div class="range-limits"><span>${s.lower.toFixed(3)}</span><span>${s.upper.toFixed(3)}</span></div>
+  </div>`;
+});
+
+// Line chart
+const labels = RAW.map(r=>r.DateTime.slice(5,10));
+let lineChartInst, currentView='all';
+
+function buildDatasets(view){
+  const ds=[];
+  AXES.forEach(ax=>{
+    if(view!=='all' && view!==ax) return;
+    const s=STATS[ax];
+    ds.push({ label:ax, data:RAW.map(r=>+r[ax].toFixed(4)), borderColor:COLORS[ax], backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 });
+    ds.push({ label:'', data:Array(RAW.length).fill(+s.upper.toFixed(4)), borderColor:COLORS[ax], borderDash:[5,5], borderWidth:1, pointRadius:0, backgroundColor:'transparent' });
+    ds.push({ label:'', data:Array(RAW.length).fill(+s.lower.toFixed(4)), borderColor:COLORS[ax], borderDash:[5,5], borderWidth:1, pointRadius:0, backgroundColor:'transparent' });
+  });
+  return ds;
+}
+
+lineChartInst = new Chart(document.getElementById('lineChart'),{
+  type:'line',
+  data:{ labels, datasets:buildDatasets('all') },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ ticks:{autoSkip:true,maxTicksLimit:16,font:{size:10},color:'#666'}, grid:{color:'rgba(255,255,255,0.05)'} },
+      y:{ ticks:{font:{size:10},color:'#666'}, grid:{color:'rgba(255,255,255,0.05)'} }
+    }
+  }
+});
+
+window.setView = function(v, btn){
+  currentView=v;
+  document.querySelectorAll('.ctrl-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  lineChartInst.data.datasets = buildDatasets(v==='all'?'all':v);
+  lineChartInst.update();
+};
+
+// Histogram
+const BINS=15;
+function histogram(vals){
+  const mn=Math.min(...vals), mx=Math.max(...vals), step=(mx-mn)/BINS;
+  const counts=Array(BINS).fill(0);
+  vals.forEach(v=>{ let i=Math.min(Math.floor((v-mn)/step),BINS-1); counts[i]++; });
+  return { counts, lbls:Array.from({length:BINS},(_,i)=>(mn+i*step).toFixed(2)) };
+}
+const hBase = histogram(RAW.map(r=>r.Axial));
+new Chart(document.getElementById('histChart'),{
+  type:'bar',
+  data:{
+    labels: hBase.lbls,
+    datasets: AXES.map(ax=>({
+      label:ax,
+      data:histogram(RAW.map(r=>r[ax])).counts,
+      backgroundColor:COLORS[ax]+'66',
+      borderColor:COLORS[ax],
+      borderWidth:1
+    }))
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ ticks:{font:{size:10},color:'#666'}, grid:{color:'rgba(255,255,255,0.05)'} },
+      y:{ ticks:{font:{size:10},color:'#666'}, grid:{color:'rgba(255,255,255,0.05)'}, title:{display:true,text:'Frecuencia',font:{size:11},color:'#666'} }
+    }
+  }
+});
+</script>
+</body>
+</html>
